@@ -60,7 +60,5 @@ def load_data(dir, filename):
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Arquivo {filename} ainda não encontrado após download")
     
-    # Carregar e retornar o DataFrame
-    print(f"Carregando {filename}...")
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, low_memory=False)
     return df

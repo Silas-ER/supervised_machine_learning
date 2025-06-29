@@ -1,12 +1,17 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay
+from sklearn.neighbors import KNeighborsClassifier
+
 import seaborn as sns
 import streamlit as st
 import os
 
 from modules.load_data import load_data
-
 
 #configuração da página
 st.set_page_config(
@@ -19,6 +24,10 @@ st.set_page_config(
 #Titulo da página
 st.title("Previsão de Atrasos em Voos")
 
+flights = load_data('data', 'flights.csv')
+airlines = load_data('data', 'airlines.csv')
+airports = load_data('data', 'airports.csv')
+
 tab1, tab2, tab3 = st.tabs(["Dados", "Análise Exploratória", "Modelo"])
 
 with tab1:
@@ -27,8 +36,6 @@ with tab1:
 
     # Caso o dataset selecionado seja Flights
     if dataset == "Flights":
-        flights = load_data('data', 'flights.csv')
-
         st.subheader("Descrição das Colunas")
         colunas_flights = {
             "YEAR": "Ano em que o voo ocorreu.",
@@ -75,26 +82,37 @@ with tab1:
 
         st.subheader("Estrutura do Dataset")
         st.write("Tipos dos dados:")
-        info_df = pd.DataFrame({
-            'Coluna': flights.columns,
-            'Tipo': flights.dtypes.values,
-            'Não-Nulos': flights.count().values,
-            'Total': len(flights)
-        })
+        info_data = []
+        for col in flights.columns:
+            info_data.append({
+                'Coluna': str(col),
+                'Tipo': str(flights[col].dtype),
+                'Não-Nulos': int(flights[col].count()),
+                'Total': int(len(flights))
+            })
+        info_df = pd.DataFrame(info_data)
         st.dataframe(info_df)
 
         st.write(f"Shape: {flights.shape}")
 
     # Caso o dataset selecionado seja Airlines
     elif dataset == "Airlines":
-        airlines = load_data('data', 'airlines.csv')
-
         st.subheader("Descrição das Colunas")
         colunas_airlines = {
-            "IATA_CODE": "Código IATA único da companhia aérea (ex.: AA = American Airlines).",
-            "AIRLINE": "Nome completo da companhia aérea (ex.: Delta Air Lines, United Airlines, etc.)."
+            "IATA_CODE": ["Código IATA único da companhia aérea (ex.: AA = American Airlines).", "object"],
+            "AIRLINE": ["Nome completo da companhia aérea (ex.: Delta Air Lines, United Airlines, etc.).", "object"]
         }
-        st.table(pd.DataFrame(list(colunas_airlines.items()), columns=["Colunas", "Descrição"]))
+        
+        
+        airlines_info = []
+        for coluna, info in colunas_airlines.items():
+            airlines_info.append({
+                "Colunas": coluna,
+                "Descrição": info[0],
+                "Tipo": info[1]
+            })
+        
+        st.table(pd.DataFrame(airlines_info))
         
         st.subheader("Visualização - airlines.csv")
         st.write("5 primeiras linhas do dataset:")
@@ -104,22 +122,10 @@ with tab1:
         st.write("Veja as principais estatísticas das variáveis numéricas:")
         st.write(airlines.describe())
 
-        st.subheader("Estrutura do Dataset")
-        st.write("Tipos dos dados:")
-        info_df = pd.DataFrame({
-            'Coluna': airlines.columns,
-            'Tipo': airlines.dtypes.values,
-            'Não-Nulos': airlines.count().values,
-            'Total': len(airlines)
-        })
-        st.dataframe(info_df)
-
         st.write(f"Shape: {airlines.shape}")
 
     # Caso o dataset selecionado seja Airports
     elif dataset == "Airports":
-        airports = load_data('data', 'airports.csv')
-
         st.subheader("Descrição das Colunas")
         colunas_airports = {
             "IATA_CODE": "Código IATA único do aeroporto (ex.: ATL = Atlanta International Airport).",
@@ -142,12 +148,15 @@ with tab1:
 
         st.subheader("Estrutura do Dataset")
         st.write("Tipos dos dados:")
-        info_df = pd.DataFrame({
-            'Coluna': airports.columns,
-            'Tipo': airports.dtypes.values,
-            'Não-Nulos': airports.count().values,
-            'Total': len(airports)
-        })
+        info_data = []
+        for col in airports.columns:
+            info_data.append({
+                'Coluna': str(col),
+                'Tipo': str(airports[col].dtype),
+                'Não-Nulos': int(airports[col].count()),
+                'Total': int(len(airports))
+            })
+        info_df = pd.DataFrame(info_data)
         st.dataframe(info_df)
 
         st.write(f"Shape: {airports.shape}")
@@ -242,10 +251,12 @@ with tab2:
     with col1:
         # Atrasos por dia da semana
         st.subheader("Atrasos por Dia da Semana")
-        flights['DAY_OF_WEEK'] = flights['DAY_OF_WEEK'].map({1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta',
+        # Create a copy for visualization to avoid modifying original data
+        flights_viz = flights.copy()
+        flights_viz['DAY_OF_WEEK_NAME'] = flights_viz['DAY_OF_WEEK'].map({1: 'Segunda', 2: 'Terça', 3: 'Quarta', 4: 'Quinta',
                                                             5: 'Sexta', 6: 'Sábado', 7: 'Domingo'})
 
-        week_day_delays = flights.groupby('DAY_OF_WEEK')['ARRIVAL_DELAY'].mean()
+        week_day_delays = flights_viz.groupby('DAY_OF_WEEK_NAME')['ARRIVAL_DELAY'].mean()
 
         fig, ax = plt.subplots(figsize=(10, 6))
         week_day_delays.plot(kind='bar', ax=ax, color='green')
@@ -258,8 +269,10 @@ with tab2:
         # Atrasos por hora do dia
         st.subheader("Atrasos por Hora do Dia")
 
+        # Create HOUR column if it doesn't exist
+        if 'HOUR' not in flights.columns:
+            flights['HOUR'] = flights['SCHEDULED_DEPARTURE'] // 100
         
-        flights['HOUR'] = flights['SCHEDULED_DEPARTURE'] // 100
         hourly_delays = flights.groupby('HOUR')['ARRIVAL_DELAY'].mean()
 
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -304,4 +317,145 @@ with tab2:
     """)
 
 with tab3:
-    pass
+    st.header("Modelagem Preditiva para Atrasos em Voos ✈️")
+
+    st.subheader("Objetivo")
+    st.markdown("""
+        Treinamento de modelos simples para prever atrasos superiores a 15 minutos.
+    """)
+
+    # Variavel target: Atrasos na chegada
+    flights['DELAYED'] = flights['ARRIVAL_DELAY'].apply(lambda x: 1 if x > 15 else 0)
+
+    # Criacao da coluna HOUR se não existir
+    if 'HOUR' not in flights.columns:
+        flights['HOUR'] = flights['SCHEDULED_DEPARTURE'] // 100
+    
+    # Selecionando as features relevantes
+    features = ['DEPARTURE_DELAY', 'TAXI_OUT', 'DISTANCE', 'DAY_OF_WEEK', 'HOUR']
+    X = flights[features]
+    y = flights['DELAYED']
+    
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.write("### Análise de Valores Ausentes")
+        missing_data = X.isnull().sum()
+        st.write("**Valores ausentes por feature:**")
+        st.dataframe(missing_data.to_frame(name='Valores Ausentes'))
+    
+    # Limpeza dos dados
+    complete_cases = X.notna().all(axis=1) & y.notna()
+    X_clean = X[complete_cases]
+    y_clean = y[complete_cases]
+
+    # Divisao de dados em treino e teste
+    X_train, X_test, y_train, y_test = train_test_split(X_clean, y_clean, test_size=0.2, random_state=42)
+    
+    with col2:
+        st.write("### Informações dos Dados (após limpeza)")
+        st.write(f"**Número original de amostras:** {X.shape[0]}")
+        st.write(f"**Número de amostras após limpeza:** {X_clean.shape[0]}")
+        st.write(f"**Número de features:** {X_clean.shape[1]}")
+        st.write(f"**Amostras removidas:** {X.shape[0] - X_clean.shape[0]}")
+    
+    with col3:
+        st.write("### Divisão dos Dados (80% para treinamento e 20% para teste)")
+        st.write(f"**Tamanho dos dados de treino:** {X_train.shape[0]}")
+        st.write(f"**Tamanho dos dados de teste:** {X_test.shape[0]}")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Modelo 1: Regressão Logística")
+        # Treinamento
+        log_reg = LogisticRegression(random_state=42)
+        log_reg.fit(X_train, y_train)
+
+        # Previsões
+        y_pred = log_reg.predict(X_test)
+
+        st.write("**Relatório de Classificação:**")
+        report = classification_report(y_test, y_pred, output_dict=True)
+        st.dataframe(pd.DataFrame(report).transpose())
+
+        st.subheader("Matriz de Confusão: Regressão Logística")
+        fig, ax = plt.subplots()
+        ConfusionMatrixDisplay.from_estimator(log_reg, X_test, y_test, ax=ax)
+        st.pyplot(fig)
+
+        st.markdown(""" 
+            - True Label 0 (Não Atrasado Real):
+                - 925.369 (TN): O modelo previu corretamente que 925.369 voos não atrasariam, e eles de fato não atrasaram.
+                - 16.438 (FP): O modelo previu que 16.438 voos atrasariam, mas eles, na verdade, não atrasaram (falsos alarmes).
+            - True Label 1 (Atrasado Real):
+                - 47.728 (FN): O modelo previu que 47.728 voos não atrasariam, mas eles, na verdade, atrasaram (erros de previsão de atraso).
+                - 156.472 (TP): O modelo previu corretamente que 156.472 voos atrasariam, e eles de fato atrasaram.
+        """)
+
+    with col2:
+        st.subheader("Modelo 2: K-Nearest Neighbors (KNN)")
+        # Treinamento
+        knn = KNeighborsClassifier(n_neighbors=5)
+        knn.fit(X_train, y_train)
+
+        # Previsões
+        y_pred_knn = knn.predict(X_test)
+        st.write("**Relatório de Classificação:**")
+        report_knn = classification_report(y_test, y_pred_knn, output_dict=True)
+        st.dataframe(pd.DataFrame(report_knn).transpose())
+
+        st.subheader("Matriz de Confusão: KNN")
+        fig, ax = plt.subplots()
+        ConfusionMatrixDisplay.from_estimator(knn, X_test, y_test, ax=ax)
+        st.pyplot(fig)
+
+        st.markdown(""" 
+            - True Label 0 (Não Atrasado Real):
+                - 920.295 (TN): O modelo previu corretamente que 920.295 voos não atrasariam, e eles de fato não atrasaram.
+                - 21.512 (FP): O modelo previu que 21.512 voos atrasariam, mas eles, na verdade, não atrasaram (falsos alarmes).
+            - True Label 1 (Atrasado Real):
+                - 45.095 (FN): O modelo previu que 45.095 voos não atrasariam, mas eles, na verdade, atrasaram (erros de previsão de atraso).
+                - 159.105 (TP): O modelo previu corretamente que 159.105 voos atrasariam, e eles de fato atrasaram.
+        """)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Comparação dos Modelos
+        st.subheader("Comparação dos Modelos")
+        results = {
+            "Modelo": ["Regressão Logística", "KNN"],
+            "F1-Score": [report["1"]["f1-score"], report_knn["1"]["f1-score"]],
+            "Acurácia": [report["accuracy"], report_knn["accuracy"]],
+            "Precision": [report["1"]["precision"], report_knn["1"]["precision"]],
+            "Recall": [report["1"]["recall"], report_knn["1"]["recall"]],
+        }
+
+        st.table(pd.DataFrame(results).set_index("Modelo"))
+
+    with col2:
+        st.subheader("Importância das Features (Regressão Logística)")
+        feature_importance = pd.DataFrame({
+            'Feature': features,
+            'Coefficient': log_reg.coef_[0],
+            'Abs_Coefficient': abs(log_reg.coef_[0])
+        }).sort_values('Abs_Coefficient', ascending=False)
+        
+        st.dataframe(feature_importance)
+    
+    with col1:
+        st.subheader("Gráfico de Importância das Features")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        feature_importance.plot(x='Feature', y='Coefficient', kind='bar', ax=ax)
+        ax.set_title('Coeficientes da Regressão Logística')
+        ax.set_ylabel('Coeficiente')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+    
+    with col2:
+        st.subheader("Conclusões")
+        st.markdown(""" 
+            - DEPARTURE_DELAY e TAXI_OUT são, de longe, as variáveis mais importantes para prever se um voo vai atrasar na chegada, com DEPARTURE_DELAY sendo a mais impactante.
+            - HOUR, DAY_OF_WEEK e DISTANCE têm uma importância marginal ou insignificante para este modelo de regressão logística na previsão de atrasos.
+        """)
