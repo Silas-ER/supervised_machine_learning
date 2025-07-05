@@ -24,9 +24,29 @@ st.set_page_config(
 #Titulo da página
 st.title("Previsão de Atrasos em Voos")
 
-flights = load_data('data', 'flights.csv')
-airlines = load_data('data', 'airlines.csv')
-airports = load_data('data', 'airports.csv')
+@st.cache_data
+def load_cached_data(dir, filename):
+    return load_data(dir, filename)
+
+flights = load_cached_data('data', 'flights.csv')
+flights.drop(
+    columns=[
+        'YEAR',
+        'MONTH',
+        'DAY',
+        'FLIGHT_NUMBER',
+        'TAIL_NUMBER',
+        'CANCELLATION_REASON',
+        'AIRLINE_DELAY',
+        'LATE_AIRCRAFT_DELAY',
+        'WEATHER_DELAY',
+        'AIR_SYSTEM_DELAY',
+        'SECURITY_DELAY',
+    ],
+    inplace=True
+)
+airlines = load_cached_data('data', 'airlines.csv')
+airports = load_cached_data('data', 'airports.csv')
 
 tab1, tab2, tab3 = st.tabs(["Dados", "Análise Exploratória", "Modelo"])
 
@@ -36,15 +56,10 @@ with tab1:
 
     # Caso o dataset selecionado seja Flights
     if dataset == "Flights":
-        st.subheader("Descrição das Colunas")
+        st.subheader("Descrição das colunas utilizadas:")
         colunas_flights = {
-            "YEAR": "Ano em que o voo ocorreu.",
-            "MONTH": "Mês do ano em que o voo ocorreu.",
-            "DAY": "Dia do mês em que o voo ocorreu.",
             "DAY_OF_WEEK": "Dia da semana (1 = Segunda-feira, ..., 7 = Domingo).",
             "AIRLINE": "Código IATA da companhia aérea responsável pelo voo.",
-            "FLIGHT_NUMBER": "Número único do voo.",
-            "TAIL_NUMBER": "Código único da aeronave usada no voo.",
             "ORIGIN_AIRPORT": "Código IATA do aeroporto de origem.",
             "DESTINATION_AIRPORT": "Código IATA do aeroporto de destino.",
             "SCHEDULED_DEPARTURE": "Horário programado de partida (HHMM).",
@@ -63,12 +78,6 @@ with tab1:
             "ARRIVAL_DELAY": "Atraso em minutos (negativo = adiantado).",
             "DIVERTED": "Desvio para outro aeroporto (1 = Sim, 0 = Não).",
             "CANCELLED": "Cancelamento (1 = Sim, 0 = Não).",
-            "CANCELLATION_REASON": "Razão do cancelamento (A = Companhia, B = Clima, C = Sistema Aéreo).",
-            "AIR_SYSTEM_DELAY": "Atraso no sistema aéreo (minutos).",
-            "SECURITY_DELAY": "Atrasos devido à segurança (minutos).",
-            "AIRLINE_DELAY": "Atraso causado pela companhia aérea (minutos).",
-            "LATE_AIRCRAFT_DELAY": "Atraso por chegada tardia de outro avião.",
-            "WEATHER_DELAY": "Atraso devido ao clima (minutos)."
         }
         st.table(pd.DataFrame(list(colunas_flights.items()), columns=["Colunas", "Descrição"]))
         
