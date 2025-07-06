@@ -325,6 +325,20 @@ with tab2:
             - Há uma correlação positiva, mas relativamente fraca. Um tempo de taxiamento maior pode contribuir um pouco para o atraso na chegada, mas não é um fator tão dominante quanto o atraso na partida.
     """)
 
+@st.cache_resource
+def train_logistic_regression(X_train, y_train):
+    """Treina e retorna o modelo de Regressão Logística em cache."""
+    model = LogisticRegression(random_state=42)
+    model.fit(X_train, y_train)
+    return model
+
+@st.cache_resource
+def train_knn(X_train, y_train):
+    """Treina e retorna o modelo KNN em cache."""
+    model = KNeighborsClassifier(n_neighbors=5)
+    model.fit(X_train, y_train)
+    return model
+
 with tab3:
     st.header("Modelagem Preditiva para Atrasos em Voos ✈️")
 
@@ -335,7 +349,8 @@ with tab3:
 
     # Variavel target: Atrasos na chegada
     flights['DELAYED'] = flights['ARRIVAL_DELAY'].apply(lambda x: 1 if x > 15 else 0)
-
+    flights['DIVERTED'] = flights['DIVERTED'].apply(lambda x: 1 if x == 1 else 0)
+    
     # Criacao da coluna HOUR se não existir
     if 'HOUR' not in flights.columns:
         flights['HOUR'] = flights['SCHEDULED_DEPARTURE'] // 100
@@ -378,8 +393,7 @@ with tab3:
     with col1:
         st.subheader("Modelo 1: Regressão Logística")
         # Treinamento
-        log_reg = LogisticRegression(random_state=42)
-        log_reg.fit(X_train, y_train)
+        log_reg = train_logistic_regression(X_train, y_train)
 
         # Previsões
         y_pred = log_reg.predict(X_test)
@@ -405,8 +419,7 @@ with tab3:
     with col2:
         st.subheader("Modelo 2: K-Nearest Neighbors (KNN)")
         # Treinamento
-        knn = KNeighborsClassifier(n_neighbors=5)
-        knn.fit(X_train, y_train)
+        knn = train_knn(X_train, y_train)
 
         # Previsões
         y_pred_knn = knn.predict(X_test)
@@ -468,3 +481,140 @@ with tab3:
             - DEPARTURE_DELAY e TAXI_OUT são, de longe, as variáveis mais importantes para prever se um voo vai atrasar na chegada, com DEPARTURE_DELAY sendo a mais impactante.
             - HOUR, DAY_OF_WEEK e DISTANCE têm uma importância marginal ou insignificante para este modelo de regressão logística na previsão de atrasos.
         """)
+
+    """
+        ## Inclusão de Novas Features
+    """
+    st.subheader("Inclusão de novas features:")
+
+    new_features = ['DEPARTURE_DELAY', 'TAXI_OUT', 'DISTANCE', 'DAY_OF_WEEK', 'HOUR', 'TAXI_IN', 'DIVERTED', 'ELAPSED_TIME', 'SCHEDULED_TIME']
+    X = flights[new_features]
+    y = flights['DELAYED']
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.write("### Análise de Valores Ausentes")
+        missing_data = X.isnull().sum()
+        st.write("**Valores ausentes por feature:**")
+        st.dataframe(missing_data.to_frame(name='Valores Ausentes'))
+    
+    # Limpeza dos dados
+    complete_cases = X.notna().all(axis=1) & y.notna()
+    X_clean = X[complete_cases]
+    y_clean = y[complete_cases]
+
+    # Divisao de dados em treino e teste
+    X_train, X_test, y_train, y_test = train_test_split(X_clean, y_clean, test_size=0.2, random_state=42)
+    
+    with col2:
+        st.write("### Informações dos Dados (após limpeza)")
+        st.write(f"**Número original de amostras:** {X.shape[0]}")
+        st.write(f"**Número de amostras após limpeza:** {X_clean.shape[0]}")
+        st.write(f"**Número de features:** {X_clean.shape[1]}")
+        st.write(f"**Amostras removidas:** {X.shape[0] - X_clean.shape[0]}")
+    
+    with col3:
+        st.write("### Divisão dos Dados (80% para treinamento e 20% para teste)")
+        st.write(f"**Tamanho dos dados de treino:** {X_train.shape[0]}")
+        st.write(f"**Tamanho dos dados de teste:** {X_test.shape[0]}")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("Modelo 1: Regressão Logística")
+        # Treinamento
+        log_reg = train_logistic_regression(X_train, y_train)
+
+        # Previsões
+        y_pred = log_reg.predict(X_test)
+
+        st.write("**Relatório de Classificação:**")
+        report = classification_report(y_test, y_pred, output_dict=True)
+        st.dataframe(pd.DataFrame(report).transpose())
+
+        st.subheader("Matriz de Confusão: Regressão Logística")
+        fig, ax = plt.subplots()
+        ConfusionMatrixDisplay.from_estimator(log_reg, X_test, y_test, ax=ax, values_format='d')
+        st.pyplot(fig)
+
+        st.markdown(""" 
+            - True Label 0 (Não Atrasado Real):
+                - 925.369 (TN): O modelo previu corretamente que 925.369 voos não atrasariam, e eles de fato não atrasaram.
+                - 16.438 (FP): O modelo previu que 16.438 voos atrasariam, mas eles, na verdade, não atrasaram (falsos alarmes).
+            - True Label 1 (Atrasado Real):
+                - 47.728 (FN): O modelo previu que 47.728 voos não atrasariam, mas eles, na verdade, atrasaram (erros de previsão de atraso).
+                - 156.472 (TP): O modelo previu corretamente que 156.472 voos atrasariam, e eles de fato atrasaram.
+        """)
+
+    with col2:
+        st.subheader("Modelo 2: K-Nearest Neighbors (KNN)")
+        # Treinamento
+        knn = train_knn(X_train, y_train)
+
+        # Previsões
+        y_pred_knn = knn.predict(X_test)
+        st.write("**Relatório de Classificação:**")
+        report_knn = classification_report(y_test, y_pred_knn, output_dict=True)
+        st.dataframe(pd.DataFrame(report_knn).transpose())
+
+        st.subheader("Matriz de Confusão: KNN")
+        fig, ax = plt.subplots()
+        ConfusionMatrixDisplay.from_estimator(knn, X_test, y_test, ax=ax, values_format='d')
+        st.pyplot(fig)
+
+        st.markdown(""" 
+            - True Label 0 (Não Atrasado Real):
+                - 920.295 (TN): O modelo previu corretamente que 920.295 voos não atrasariam, e eles de fato não atrasaram.
+                - 21.512 (FP): O modelo previu que 21.512 voos atrasariam, mas eles, na verdade, não atrasaram (falsos alarmes).
+            - True Label 1 (Atrasado Real):
+                - 45.095 (FN): O modelo previu que 45.095 voos não atrasariam, mas eles, na verdade, atrasaram (erros de previsão de atraso).
+                - 159.105 (TP): O modelo previu corretamente que 159.105 voos atrasariam, e eles de fato atrasaram.
+        """)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        # Comparação dos Modelos
+        st.subheader("Comparação dos Modelos")
+        results = {
+            "Modelo": ["Regressão Logística", "KNN"],
+            "F1-Score": [report["1"]["f1-score"], report_knn["1"]["f1-score"]],
+            "Acurácia": [report["accuracy"], report_knn["accuracy"]],
+            "Precision": [report["1"]["precision"], report_knn["1"]["precision"]],
+            "Recall": [report["1"]["recall"], report_knn["1"]["recall"]],
+        }
+
+        st.table(pd.DataFrame(results).set_index("Modelo"))
+
+    with col2:
+        st.subheader("Importância das Features (Regressão Logística)")
+        feature_importance = pd.DataFrame({
+            'Feature': new_features,
+            'Coefficient': log_reg.coef_[0],
+            'Abs_Coefficient': abs(log_reg.coef_[0])
+        }).sort_values('Abs_Coefficient', ascending=False)
+        
+        st.dataframe(feature_importance)
+    
+    with col1:
+        st.subheader("Gráfico de Importância das Features")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        feature_importance.plot(x='Feature', y='Coefficient', kind='bar', ax=ax)
+        ax.set_title('Coeficientes da Regressão Logística')
+        ax.set_ylabel('Coeficiente')
+        plt.xticks(rotation=45)
+        st.pyplot(fig)
+    
+    with col2:
+        st.subheader("Conclusões")
+        st.markdown(""" 
+            - DEPARTURE_DELAY e TAXI_OUT são, de longe, as variáveis mais importantes para prever se um voo vai atrasar na chegada, com DEPARTURE_DELAY sendo a mais impactante.
+            - HOUR, DAY_OF_WEEK e DISTANCE têm uma importância marginal ou insignificante para este modelo de regressão logística na previsão de atrasos.
+        """)
+
+    """
+        ## Inclusão de novo modelo
+    """
+
+    st.subheader("Inclusão de novo modelo:")
