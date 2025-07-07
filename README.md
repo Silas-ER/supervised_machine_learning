@@ -9,7 +9,7 @@ Este projeto tem como objetivo desenvolver modelos de machine learning para prev
 ## 🎯 Objetivos
 
 - 📊 **Análise Exploratória**: Identificar padrões e fatores que influenciam atrasos em voos
-- 🤖 **Modelagem Preditiva**: Implementar e comparar modelos de machine learning (Regressão Logística e KNN)
+- 🤖 **Modelagem Preditiva**: Implementar e comparar modelos de machine learning (Regressão Logística, KNN e Random Forest)
 - 📈 **Visualização Interativa**: Criar interface web com Streamlit para exploração dos dados e resultados
 - 🔍 **Insights de Negócio**: Gerar insights acionáveis sobre fatores de atraso
 
@@ -102,9 +102,11 @@ Este projeto tem como objetivo desenvolver modelos de machine learning para prev
 - **Modelos Implementados**:
   - 📈 Regressão Logística
   - 🔍 K-Nearest Neighbors (KNN)
+  - 🌲 Random Forest
 - **Métricas de Avaliação**: Precision, Recall, F1-Score e Acurácia
 - **Visualizações**: Matrizes de confusão e importância das features
 - **Comparação**: Análise comparativa entre os modelos
+- **Novas Features**: Inclusão de variáveis como `TAXI_IN`, `DIVERTED`, `ELAPSED_TIME` e `SCHEDULED_TIME` para melhorar a performance dos modelos
 
 ## 📈 Tecnologias Utilizadas
 
@@ -122,6 +124,7 @@ Este projeto tem como objetivo desenvolver modelos de machine learning para prev
 - 🕐 **Padrões horários** com maior probabilidade de atraso
 - ✈️ **Diferenças significativas** entre companhias aéreas
 - 🛫 **Aeroportos específicos** com maior tendência a atrasos
+- 🌲 **Random Forest** como modelo mais eficaz para prever atrasos, com alta precisão e recall
 
 ## 👥 Contribuição
 
