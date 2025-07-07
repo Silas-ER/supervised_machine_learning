@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, ConfusionMatrixDisplay
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
 
 import seaborn as sns
 import streamlit as st
@@ -22,7 +24,7 @@ st.set_page_config(
 )
 
 #Titulo da página
-st.title("Previsão de Atrasos em Voos")
+st.title("Previsão de Atrasos em Voos 🛫")
 
 @st.cache_data
 def load_cached_data(dir, filename):
@@ -339,6 +341,13 @@ def train_knn(X_train, y_train):
     model.fit(X_train, y_train)
     return model
 
+@st.cache_resource
+def train_random_forest(X_train, y_train):
+    """Treina e retorna o modelo Random Forest em cache."""
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    return model
+
 with tab3:
     st.header("Modelagem Preditiva para Atrasos em Voos ✈️")
 
@@ -482,10 +491,9 @@ with tab3:
             - HOUR, DAY_OF_WEEK e DISTANCE têm uma importância marginal ou insignificante para este modelo de regressão logística na previsão de atrasos.
         """)
 
-    """
-        ## Inclusão de Novas Features
-    """
-    st.subheader("Inclusão de novas features:")
+    ############################################################################################################################################################
+
+    st.header("Inclusão de novas features e modelo:")
 
     new_features = ['DEPARTURE_DELAY', 'TAXI_OUT', 'DISTANCE', 'DAY_OF_WEEK', 'HOUR', 'TAXI_IN', 'DIVERTED', 'ELAPSED_TIME', 'SCHEDULED_TIME']
     X = flights[new_features]
@@ -519,10 +527,11 @@ with tab3:
         st.write(f"**Tamanho dos dados de treino:** {X_train.shape[0]}")
         st.write(f"**Tamanho dos dados de teste:** {X_test.shape[0]}")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.subheader("Modelo 1: Regressão Logística")
+
         # Treinamento
         log_reg = train_logistic_regression(X_train, y_train)
 
@@ -539,16 +548,18 @@ with tab3:
         st.pyplot(fig)
 
         st.markdown(""" 
-            - True Label 0 (Não Atrasado Real):
-                - 925.369 (TN): O modelo previu corretamente que 925.369 voos não atrasariam, e eles de fato não atrasaram.
-                - 16.438 (FP): O modelo previu que 16.438 voos atrasariam, mas eles, na verdade, não atrasaram (falsos alarmes).
-            - True Label 1 (Atrasado Real):
-                - 47.728 (FN): O modelo previu que 47.728 voos não atrasariam, mas eles, na verdade, atrasaram (erros de previsão de atraso).
-                - 156.472 (TP): O modelo previu corretamente que 156.472 voos atrasariam, e eles de fato atrasaram.
+            Após a inclusão de novas features notamos uma leve melhora na performance do modelo
+            aumentando a sua Precision, Recall e F1-Score, principalmente no caso dos voos atrasados.
+            - Redução de Falsos Negativos (FN) e Falsos Positivos (FP):
+                - FN (Antes): 47.728	
+                - FN (Depois): 8.132	
+                - FP (Antes): 16.438	
+                - FP (Depois): 10.196
         """)
 
     with col2:
         st.subheader("Modelo 2: K-Nearest Neighbors (KNN)")
+
         # Treinamento
         knn = train_knn(X_train, y_train)
 
@@ -564,12 +575,41 @@ with tab3:
         st.pyplot(fig)
 
         st.markdown(""" 
-            - True Label 0 (Não Atrasado Real):
-                - 920.295 (TN): O modelo previu corretamente que 920.295 voos não atrasariam, e eles de fato não atrasaram.
-                - 21.512 (FP): O modelo previu que 21.512 voos atrasariam, mas eles, na verdade, não atrasaram (falsos alarmes).
-            - True Label 1 (Atrasado Real):
-                - 45.095 (FN): O modelo previu que 45.095 voos não atrasariam, mas eles, na verdade, atrasaram (erros de previsão de atraso).
-                - 159.105 (TP): O modelo previu corretamente que 159.105 voos atrasariam, e eles de fato atrasaram.
+            O mesmo vale para o KNN, após a inclusão de novas features notamos uma leve melhora na performance do modelo
+            aumentando a sua Precision, Recall e F1-Score, principalmente no caso dos voos atrasados.
+            - Redução de Falsos Negativos (FN) e Falsos Positivos (FP):
+                - FN (Antes): 45.095	
+                - FN (Depois): 12.801	
+                - FP (Antes): 21.512	
+                - FP (Depois): 5.293
+        """)
+
+    with col3:
+        st.subheader("Modelo 3: Random Forest")
+        # Treinamento
+        rf_model = train_random_forest(X_train, y_train)
+
+        # Previsões
+        y_pred_rf = rf_model.predict(X_test)
+
+        # Relatório de classificação
+        st.write("**Relatório de Classificação:**")
+        report_rf = classification_report(y_test, y_pred_rf, output_dict=True)
+        st.dataframe(pd.DataFrame(report_rf).transpose())
+
+        # Matriz de confusão
+        st.subheader("Matriz de Confusão: Random Forest")
+        fig, ax = plt.subplots()
+        ConfusionMatrixDisplay.from_estimator(rf_model, X_test, y_test, ax=ax, values_format='d')
+        st.pyplot(fig)
+
+        st.markdown(""" 
+            A inclusão do modelo Random Forest trouxe uma melhora expressiva na performance geral, destacando-se como o melhor entre os modelos testados até o momento (Regressão Logística e KNN).
+            - O modelo apresentou alta precisão (0.9873), recall (0.9874) e F1-Score (0.9874), com excelente equilíbrio entre as classes.
+            - Notamos uma redução significativa nos Falsos Positivos (FP) — ou seja, o modelo erra muito pouco ao prever que um voo vai atrasar quando, na verdade, ele não vai:
+                - FP: 3.437, o menor valor entre os três modelos.	
+            - Embora tenha uma pequena quantidade de Falsos Negativos (FN), o número continua bem competitivo:
+                - FN: 11.017, próximo ao valor da regressão logística (8.132), porém com melhor controle dos FP.
         """)
 
     col1, col2 = st.columns(2)
@@ -578,16 +618,15 @@ with tab3:
         # Comparação dos Modelos
         st.subheader("Comparação dos Modelos")
         results = {
-            "Modelo": ["Regressão Logística", "KNN"],
-            "F1-Score": [report["1"]["f1-score"], report_knn["1"]["f1-score"]],
-            "Acurácia": [report["accuracy"], report_knn["accuracy"]],
-            "Precision": [report["1"]["precision"], report_knn["1"]["precision"]],
-            "Recall": [report["1"]["recall"], report_knn["1"]["recall"]],
+            "Modelo": ["Regressão Logística", "KNN", "Random Forest"],
+            "F1-Score": [report["1"]["f1-score"], report_knn["1"]["f1-score"], report_rf["1"]["f1-score"]],
+            "Acurácia": [report["accuracy"], report_knn["accuracy"], report_rf["accuracy"]],
+            "Precision": [report["1"]["precision"], report_knn["1"]["precision"], report_rf["1"]["precision"]],
+            "Recall": [report["1"]["recall"], report_knn["1"]["recall"], report_rf["1"]["recall"]],
         }
 
         st.table(pd.DataFrame(results).set_index("Modelo"))
 
-    with col2:
         st.subheader("Importância das Features (Regressão Logística)")
         feature_importance = pd.DataFrame({
             'Feature': new_features,
@@ -595,9 +634,6 @@ with tab3:
             'Abs_Coefficient': abs(log_reg.coef_[0])
         }).sort_values('Abs_Coefficient', ascending=False)
         
-        st.dataframe(feature_importance)
-    
-    with col1:
         st.subheader("Gráfico de Importância das Features")
         fig, ax = plt.subplots(figsize=(10, 6))
         feature_importance.plot(x='Feature', y='Coefficient', kind='bar', ax=ax)
@@ -609,12 +645,18 @@ with tab3:
     with col2:
         st.subheader("Conclusões")
         st.markdown(""" 
-            - DEPARTURE_DELAY e TAXI_OUT são, de longe, as variáveis mais importantes para prever se um voo vai atrasar na chegada, com DEPARTURE_DELAY sendo a mais impactante.
-            - HOUR, DAY_OF_WEEK e DISTANCE têm uma importância marginal ou insignificante para este modelo de regressão logística na previsão de atrasos.
+            - Impacto da Inclusão de Novas Features
+                - A adição de variáveis como TAXI_IN, ELAPSED_TIME, SCHEDULED_TIME e DIVERTED trouxe ganhos significativos na capacidade dos modelos de prever atrasos. Isso se refletiu em:
+                - Aumento da acurácia geral (de ~94% para ~98%)
+                - Melhora considerável nos F1-Scores, principalmente na classe 1 (voos atrasados)
+                - Redução drástica nos Falsos Positivos (FP) e Falsos Negativos (FN), essenciais para aplicações onde prever atrasos corretamente é crítico.
+            - Decisão Final: Melhor Modelo
+                - Considerando todos os fatores — desempenho, robustez e taxa de erro — o modelo Random Forest se destaca como o mais eficaz para a tarefa de prever atrasos em voos. Ele apresentou:
+                - A maior acurácia e F1-score global
+                - O menor número de falsos positivos, o que reduz alertas incorretos
+                - Excelente desempenho também na classe de maior interesse (voos atrasados)
+                - Embora a Regressão Logística apresente uma pequena vantagem no número de falsos negativos, seu custo em falsos positivos é maior. Já o KNN demonstrou boa performance, mas inferior ao Random Forest de forma geral.
         """)
 
-    """
-        ## Inclusão de novo modelo
-    """
-
-    st.subheader("Inclusão de novo modelo:")
+    
+    
