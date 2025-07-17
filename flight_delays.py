@@ -27,7 +27,7 @@ def load_flights_data():
     except Exception as e:
         st.error(f"❌ Erro ao carregar dados: {str(e)}")
         st.stop()
-        
+
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Análise Exploratória", "🤖 Regressão Logistica", "🤖 KNN", "🤖 Arvore de Decisão", "Tentativa de Predição"])
 
 #########################################################
@@ -46,7 +46,7 @@ with tab1:
     """)
 
 # Criando variavel de target (objetivo)
-flights = pd.read_csv('data/flights.csv', low_memory=False)
+flights = load_flights_data()
 flights['IS_DELAYED'] = (flights['ARRIVAL_DELAY'] >= 15).astype(int)
 
 # Convertendo variaveis categoricas em numericas
@@ -106,8 +106,311 @@ with tab1:
     st.write("### Informações das Features")
     st.dataframe(features_info.round(2))
 
-    st.write("### Primeiras linhas do Dataset")
-    st.dataframe(flights_exibition.head(5))
+    #########################################################
+    ############### ESTATÍSTICAS DESCRITIVAS ###############
+    #########################################################
+    
+    st.subheader("📈 Estatísticas Descritivas Detalhadas")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("### Distribuição da Variável Target")
+        target_dist = flights_cleaned['IS_DELAYED'].value_counts()
+        target_percent = flights_cleaned['IS_DELAYED'].value_counts(normalize=True) * 100
+        
+        target_summary = pd.DataFrame({
+            'Categoria': ['Não Atrasado', 'Atrasado'],
+            'Quantidade': target_dist.values,
+            'Percentual (%)': target_percent.values.round(2)
+        })
+        
+        st.dataframe(target_summary)
+        st.write(f"**Insight:** {target_percent[0]:.1f}% dos voos não apresentam atrasos significativos (≥15 min)")
+    
+    with col2:
+        st.write("### Medidas de Tendência Central")
+        key_features = ['DISTANCE', 'DEP_HOUR', 'MONTH', 'DAY_OF_WEEK']
+        
+        stats_summary = pd.DataFrame({
+            'Feature': key_features,
+            'Média': [flights_cleaned[feat].mean() for feat in key_features],
+            'Mediana': [flights_cleaned[feat].median() for feat in key_features],
+            'Desvio Padrão': [flights_cleaned[feat].std() for feat in key_features],
+            'Variância': [flights_cleaned[feat].var() for feat in key_features]
+        }).round(2)
+        
+        st.dataframe(stats_summary)
+
+    #########################################################
+    ################## HISTOGRAMAS #########################
+    #########################################################
+    
+    st.subheader("📊 Histogramas - Distribuição de Atrasos")
+    st.write("Análise da distribuição dos atrasos para entender padrões nos dados.")
+    
+    # Verificar se temos dados de atraso originais
+    if 'ARRIVAL_DELAY' in flights.columns:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("### Distribuição de Atrasos na Chegada")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Filtrar valores extremos para melhor visualização
+            arrival_delays = flights['ARRIVAL_DELAY'].dropna()
+            arrival_delays_filtered = arrival_delays[(arrival_delays >= -50) & (arrival_delays <= 200)]
+            
+            ax.hist(arrival_delays_filtered, bins=50, alpha=0.7, color='skyblue', edgecolor='black')
+            ax.axvline(x=15, color='red', linestyle='--', label='Threshold de Atraso (15 min)')
+            ax.set_xlabel('Atraso na Chegada (minutos)')
+            ax.set_ylabel('Frequência')
+            ax.set_title('Distribuição dos Atrasos na Chegada')
+            ax.legend()
+            plt.tight_layout()
+            st.pyplot(fig)
+        
+        with col2:
+            st.write("### Distribuição de Atrasos na Partida")
+            if 'DEPARTURE_DELAY' in flights.columns:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                
+                departure_delays = flights['DEPARTURE_DELAY'].dropna()
+                departure_delays_filtered = departure_delays[(departure_delays >= -50) & (departure_delays <= 200)]
+                
+                ax.hist(departure_delays_filtered, bins=50, alpha=0.7, color='lightcoral', edgecolor='black')
+                ax.axvline(x=15, color='red', linestyle='--', label='Threshold de Atraso (15 min)')
+                ax.set_xlabel('Atraso na Partida (minutos)')
+                ax.set_ylabel('Frequência')
+                ax.set_title('Distribuição dos Atrasos na Partida')
+                ax.legend()
+                plt.tight_layout()
+                st.pyplot(fig)
+
+    #########################################################
+    ##################### BOX PLOTS ########################
+    #########################################################
+    
+    st.subheader("📦 Box Plots - Identificação de Outliers")
+    st.write("Análise de outliers nas principais variáveis numéricas.")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("### Distância dos Voos")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.boxplot(data=flights_cleaned, y='DISTANCE', ax=ax)
+        ax.set_title('Box Plot - Distância dos Voos')
+        ax.set_ylabel('Distância (milhas)')
+        plt.tight_layout()
+        st.pyplot(fig)
+    
+    with col2:
+        st.write("### Hora de Partida")
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.boxplot(data=flights_cleaned, y='DEP_HOUR', ax=ax)
+        ax.set_title('Box Plot - Hora de Partida')
+        ax.set_ylabel('Hora (0-23)')
+        plt.tight_layout()
+        st.pyplot(fig)
+
+    #########################################################
+    ################ GRÁFICOS DE DISPERSÃO #################
+    #########################################################
+    
+    st.subheader("🔍 Gráficos de Dispersão - Relações entre Variáveis")
+    st.write("Análise das relações entre características dos voos e a probabilidade de atraso.")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("### Distância vs Atraso")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Criar amostra para visualização (muito dados podem travar)
+        sample_data = flights_cleaned.sample(n=min(10000, len(flights_cleaned)), random_state=42)
+        
+        scatter = ax.scatter(sample_data['DISTANCE'], sample_data['IS_DELAYED'], 
+                           alpha=0.5, c=sample_data['IS_DELAYED'], 
+                           cmap='coolwarm', s=10)
+        ax.set_xlabel('Distância (milhas)')
+        ax.set_ylabel('Atraso (0=Não, 1=Sim)')
+        ax.set_title('Relação: Distância vs Atraso')
+        plt.colorbar(scatter)
+        plt.tight_layout()
+        st.pyplot(fig)
+    
+    with col2:
+        st.write("### Hora de Partida vs Atraso")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        scatter = ax.scatter(sample_data['DEP_HOUR'], sample_data['IS_DELAYED'], 
+                           alpha=0.5, c=sample_data['IS_DELAYED'], 
+                           cmap='coolwarm', s=10)
+        ax.set_xlabel('Hora de Partida')
+        ax.set_ylabel('Atraso (0=Não, 1=Sim)')
+        ax.set_title('Relação: Hora de Partida vs Atraso')
+        plt.colorbar(scatter)
+        plt.tight_layout()
+        st.pyplot(fig)
+
+    #########################################################
+    ############### ANÁLISES POR CATEGORIA #################
+    #########################################################
+    
+    st.subheader("📋 Análises Categóricas")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("### Taxa de Atraso por Mês")
+        monthly_delays = flights_cleaned.groupby('MONTH')['IS_DELAYED'].agg(['mean', 'count']).round(3)
+        monthly_delays.columns = ['Taxa_Atraso', 'Total_Voos']
+        monthly_delays = monthly_delays.reset_index()
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.bar(monthly_delays['MONTH'], monthly_delays['Taxa_Atraso'], 
+                     color='lightblue', alpha=0.7, edgecolor='black')
+        ax.set_xlabel('Mês')
+        ax.set_ylabel('Taxa de Atraso')
+        ax.set_title('Taxa de Atraso por Mês do Ano')
+        ax.set_xticks(range(1, 13))
+        
+        # Adicionar valores nas barras
+        for bar, rate in zip(bars, monthly_delays['Taxa_Atraso']):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005, 
+                   f'{rate:.3f}', ha='center', va='bottom')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+    
+    with col2:
+        st.write("### Taxa de Atraso por Dia da Semana")
+        weekly_delays = flights_cleaned.groupby('DAY_OF_WEEK')['IS_DELAYED'].agg(['mean', 'count']).round(3)
+        weekly_delays.columns = ['Taxa_Atraso', 'Total_Voos']
+        weekly_delays = weekly_delays.reset_index()
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.bar(weekly_delays['DAY_OF_WEEK'], weekly_delays['Taxa_Atraso'], 
+                     color='lightgreen', alpha=0.7, edgecolor='black')
+        ax.set_xlabel('Dia da Semana (1=Segunda, 7=Domingo)')
+        ax.set_ylabel('Taxa de Atraso')
+        ax.set_title('Taxa de Atraso por Dia da Semana')
+        ax.set_xticks(range(1, 8))
+        
+        # Adicionar valores nas barras
+        for bar, rate in zip(bars, weekly_delays['Taxa_Atraso']):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005, 
+                   f'{rate:.3f}', ha='center', va='bottom')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
+
+    #########################################################
+    ########## HEATMAP DE CORRELAÇÃO ENTRE FEATURES #########
+    #########################################################
+    
+    st.subheader("🔥 Matriz de Correlação das Features")
+    st.write("""
+        Este heatmap mostra a correlação entre todas as features numéricas após o processamento.
+        **Cores mais intensas** indicam correlações mais fortes (positivas ou negativas).
+    """)
+    
+    # Selecionar apenas features numéricas para correlação
+    numeric_features_for_corr = flights_cleaned.select_dtypes(include=[np.number]).columns.tolist()
+    
+    # Calcular matriz de correlação
+    correlation_matrix = flights_cleaned[numeric_features_for_corr].corr()
+    
+    # Criar o heatmap
+    fig, ax = plt.subplots(figsize=(14, 10))
+    
+    # Máscara para mostrar apenas metade da matriz (mais limpo)
+    mask = np.triu(np.ones_like(correlation_matrix, dtype=bool))
+    
+    sns.heatmap(
+        correlation_matrix,
+        mask=mask,
+        annot=True,
+        fmt='.2f',
+        cmap='RdBu_r',
+        center=0,
+        square=True,
+        linewidths=0.5,
+        cbar_kws={"shrink": .8},
+        ax=ax
+    )
+    
+    plt.title('Matriz de Correlação entre Features Numéricas', fontsize=16, pad=20)
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    plt.tight_layout()
+    st.pyplot(fig)
+    
+    #########################################################
+    ############## ANÁLISE DE CORRELAÇÃO ###################
+    #########################################################
+    
+    st.subheader("🎯 Análise de Correlação com a Variável Target")
+    
+    target_correlations = correlation_matrix['IS_DELAYED'].abs().sort_values(ascending=False)
+    target_correlations = target_correlations.drop('IS_DELAYED')  # Remover self-correlation
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("### Top 10 Correlações Mais Fortes:")
+        top_correlations = pd.DataFrame({
+            'Feature': target_correlations.head(10).index,
+            'Correlação Absoluta': target_correlations.head(10).values,
+            'Correlação Original': [correlation_matrix.loc[feat, 'IS_DELAYED'] for feat in target_correlations.head(10).index]
+        }).round(3)
+        
+        st.dataframe(top_correlations)
+        
+        # Insights automáticos
+        st.write("### 💡 Insights das Correlações:")
+        strongest_positive = correlation_matrix['IS_DELAYED'][correlation_matrix['IS_DELAYED'] > 0].nlargest(3)
+        strongest_negative = correlation_matrix['IS_DELAYED'][correlation_matrix['IS_DELAYED'] < 0].nsmallest(3)
+        
+        if len(strongest_positive) > 0:
+            st.write(f"**Correlações Positivas Moderadas:** {', '.join(strongest_positive.index[:3])}")
+        if len(strongest_negative) > 0:
+            st.write(f"**Correlações Negativas:** {', '.join(strongest_negative.index[:3])}")
+        
+        # Confirmar o insight do relatório
+        key_correlations = ['DISTANCE', 'DEP_HOUR', 'MONTH']
+        available_correlations = [feat for feat in key_correlations if feat in correlation_matrix.index]
+        
+        if available_correlations:
+            st.write("### 📋 Correlações Identificadas (Relatório):")
+            for feat in available_correlations:
+                corr_val = correlation_matrix.loc[feat, 'IS_DELAYED']
+                st.write(f"- **{feat}**: {corr_val:.3f} ({'moderada' if abs(corr_val) > 0.1 else 'fraca'})")
+    
+    with col2:
+        st.write("### Visualização das Top 10 Correlações:")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # Pegar correlação original (com sinal)
+        top_corr_with_sign = [correlation_matrix.loc[feat, 'IS_DELAYED'] for feat in target_correlations.head(10).index]
+        
+        colors = ['red' if x < 0 else 'blue' for x in top_corr_with_sign]
+        
+        bars = ax.barh(range(len(top_corr_with_sign)), top_corr_with_sign, color=colors, alpha=0.7)
+        ax.set_yticks(range(len(top_corr_with_sign)))
+        ax.set_yticklabels(target_correlations.head(10).index)
+        ax.set_xlabel('Correlação com IS_DELAYED')
+        ax.set_title('Top 10 Features por Correlação com Target')
+        ax.axvline(x=0, color='black', linestyle='-', alpha=0.3)
+        
+        # Adicionar valores nas barras
+        for i, (bar, val) in enumerate(zip(bars, top_corr_with_sign)):
+            ax.text(val + (0.01 if val >= 0 else -0.01), i, f'{val:.3f}', 
+                   va='center', ha='left' if val >= 0 else 'right')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
 
 with tab2:
     #########################################################
