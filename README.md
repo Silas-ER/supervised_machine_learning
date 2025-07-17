@@ -17,15 +17,15 @@ Este projeto tem como objetivo desenvolver modelos de machine learning para prev
 
 ```
 📁 supervised_machine_learning/
-├── 📄 main.py                 # Aplicação principal Streamlit
-├── 📄 requirements.txt        # Dependências do projeto
-├── 📄 README.md              # Documentação do projeto
-├── 📁 data/                  # Datasets (gerados automaticamente)
-│   ├── flights.csv           # Dados de voos
-│   ├── airlines.csv          # Dados de companhias aéreas
-│   └── airports.csv          # Dados de aeroportos
+├── 📄 flight_delays.py       # Aplicação principal Streamlit
+├── 📄 requirements.txt       # Dependências do projeto
+├── 📄 README.md             # Documentação do projeto
+├── 📁 data/                 # Datasets (gerados automaticamente)
+│   ├── flights.csv          # Dados de voos
+│   ├── airlines.csv         # Dados de companhias aéreas
+│   └── airports.csv         # Dados de aeroportos
 └── 📁 modules/
-    └── load_data.py          # Módulo para carregamento de dados
+    └── load_data.py         # Módulo para carregamento de dados
 ```
 
 ## 📊 Datasets Utilizados

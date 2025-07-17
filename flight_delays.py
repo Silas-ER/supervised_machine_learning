@@ -1,25 +1,33 @@
-import datetime
 import pandas as pd
 import numpy as np
 import seaborn as sns
-import lightgbm as lgb
-from lightgbm import LGBMClassifier
 import matplotlib.pyplot as plt
 import streamlit as st
-import xgboost as xgb
 
+from modules.load_data import load_data
 from sklearn.preprocessing import LabelEncoder, StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split, GridSearchCV
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-
+from sklearn.metrics import classification_report, confusion_matrix
 from imblearn.over_sampling import SMOTE
 
 st.header("✈️ Modelo para predição de atrasos de voos")
 
+@st.cache_data
+def load_flights_data():
+    """Carrega dados de voos, baixando do Kaggle se necessário"""
+    try:
+        with st.spinner('Verificando dados... Baixando do Kaggle se necessário...'):
+            flights = load_data('data', 'flights.csv')
+            st.success("✅ Dados carregados com sucesso!")
+            return flights
+    except Exception as e:
+        st.error(f"❌ Erro ao carregar dados: {str(e)}")
+        st.stop()
+        
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Análise Exploratória", "🤖 Regressão Logistica", "🤖 KNN", "🤖 Arvore de Decisão", "Tentativa de Predição"])
 
 #########################################################
@@ -156,8 +164,19 @@ X_val = preprocessor.transform(X_val)
 with tab2:
     # Treinamento do modelo de Regressão Logística
     with st.spinner('Treinando o modelo de Regressão Logística...'):
-        model = LogisticRegression(random_state=42, max_iter=1000, solver='saga', n_jobs=-1)
-        model.fit(X_train, y_train)
+        sample_size = int(0.2 * len(X_train))
+        indices = np.random.choice(len(X_train), sample_size, replace=False)
+        X_train_sample = X_train[indices]
+        y_train_sample = y_train.iloc[indices]
+
+        # Treinar com amostra reduzida
+        model = LogisticRegression(
+            random_state=42,
+            max_iter=1000,
+            solver='saga',
+            n_jobs=-1
+        )
+        model.fit(X_train_sample, y_train_sample)
         y_pred = model.predict(X_val)
 
     st.subheader("📊 Perfomance do modelo sem balanceamento de classes")
@@ -202,7 +221,7 @@ with tab2:
     # Balanceamento de classes com SMOTE
     with st.spinner('Aplicando balanceamento de classes...'):
         smote = SMOTE(random_state=42)
-        X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+        X_train_balanced, y_train_balanced = smote.fit_resample(X_train_sample, y_train_sample)
 
         # Treinamento do modelo com dados balanceados
         model_balanced = LogisticRegression(
@@ -287,7 +306,7 @@ with tab3:
     with st.spinner('Treinando modelo KNN...'):
         y_train_np = y_train.to_numpy()
         
-        sample_size = min(100000, int(0.1 * len(X_train)))
+        sample_size = int(0.2 * len(X_train))
         indices = np.random.choice(len(X_train), sample_size, replace=False)
         X_train_sample = X_train[indices]
         y_train_sample = y_train_np[indices]
@@ -398,7 +417,7 @@ with tab4:
         # Convert to numpy array and sample data
         y_train_np = y_train.to_numpy()
         
-        sample_size = min(100000, int(0.1 * len(X_train)))
+        sample_size = int(0.2 * len(X_train))
         indices = np.random.choice(len(X_train), sample_size, replace=False)
         X_train_sample = X_train[indices]
         y_train_sample = y_train_np[indices]
